@@ -1014,6 +1014,9 @@ for key in ["opt_ai_counter", "opt_ai_online", "opt_result"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
+if "competitor_prices" not in st.session_state:
+    st.session_state["competitor_prices"] = {}
+
 
 # =========================================================
 # CSS
@@ -1478,9 +1481,10 @@ st.markdown(
 # TABS
 # =========================================================
 
-tab_sim, tab_compare, tab_opt, tab_export, tab_debug = st.tabs([
+tab_sim, tab_compare, tab_concorrencia, tab_opt, tab_export, tab_debug = st.tabs([
     "📊  Simulador",
     "💰  Comparação",
+    "🏁  Análise Concorrência",
     "🎯  Optimizador Global",
     "📥  Exportar",
     "🔬  Técnico",
@@ -2067,7 +2071,544 @@ with tab_compare:
 
 
 # ─────────────────────────────────────────────────────────
-# TAB 3 — OPTIMIZADOR GLOBAL
+# TAB 3 — ANÁLISE CONCORRÊNCIA
+# ─────────────────────────────────────────────────────────
+
+with tab_concorrencia:
+
+    sec("Análise de Concorrência por Código ACRISS", "🏁", "orange")
+
+    # ── Equivalence banner ────────────────────────────────
+    st.markdown(
+        """
+        <div style="background:white;border:1px solid #E2E8F0;border-radius:16px;padding:20px 24px;margin-bottom:20px;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#475569;margin-bottom:14px;">
+            Equivalências por concorrente
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+            <div style="background:#FFF7ED;border-radius:10px;padding:14px;border:1px solid #FED7AA;">
+                <div style="font-size:11px;font-weight:800;color:#7C2D12;margin-bottom:8px;">🚗 EUROPCAR</div>
+                <div style="font-size:11px;color:#92400E;margin-bottom:4px;">
+                    <span style="font-weight:700;">Medium</span> → SMART+
+                </div>
+                <div style="font-size:11px;color:#92400E;">
+                    <span style="font-weight:700;">Premium</span> → All Inclusive
+                </div>
+            </div>
+            <div style="background:#EFF6FF;border-radius:10px;padding:14px;border:1px solid #BFDBFE;">
+                <div style="font-size:11px;font-weight:800;color:#1E3A8A;margin-bottom:8px;">🚗 GUERIN</div>
+                <div style="font-size:11px;color:#1E40AF;margin-bottom:4px;">
+                    <span style="font-weight:700;">Premium Gold</span> → SMART+
+                </div>
+                <div style="font-size:11px;color:#1E40AF;">
+                    <span style="font-weight:700;">Platinum</span> → All Inclusive
+                </div>
+            </div>
+            <div style="background:#F0FDF4;border-radius:10px;padding:14px;border:1px solid #BBF7D0;">
+                <div style="font-size:11px;font-weight:800;color:#14532D;margin-bottom:8px;">🚗 AVIS</div>
+                <div style="font-size:11px;color:#15803D;margin-bottom:4px;">
+                    <span style="font-weight:700;">Veículo</span> → SMART+
+                </div>
+                <div style="font-size:11px;color:#15803D;">
+                    <span style="font-weight:700;">Veículo Plus</span> → All Inclusive
+                </div>
+            </div>
+            <div style="background:#F5F3FF;border-radius:10px;padding:14px;border:1px solid #DDD6FE;">
+                <div style="font-size:11px;font-weight:800;color:#4C1D95;margin-bottom:8px;">🚗 HERTZ</div>
+                <div style="font-size:11px;color:#5B21B6;">
+                    Apenas <span style="font-weight:700;">All Inclusive</span>
+                </div>
+            </div>
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f'<div style="font-size:12px;color:#64748B;margin-bottom:20px;">'
+        f'Preços para o grupo <strong>{group}</strong> · <strong>{days} dia{"s" if days != 1 else ""}</strong> de aluguer · valores <strong>c/IVA ({vat_pct}%)</strong></div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── Price inputs ──────────────────────────────────────
+    _ck = f"{group}_{days}"  # cache key por grupo+dias
+    _cp = st.session_state["competitor_prices"]
+    if _ck not in _cp:
+        _cp[_ck] = {k: 0.0 for k in [
+            "europcar_smart", "europcar_ai",
+            "guerin_smart", "guerin_ai",
+            "avis_smart", "avis_ai",
+            "hertz_ai",
+        ]}
+
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">',
+        unsafe_allow_html=True,
+    )
+
+    col_in_smart, col_in_ai = st.columns(2)
+
+    with col_in_smart:
+        st.markdown(
+            '<div style="background:#FFF7ED;border-radius:12px;padding:16px 20px;border:1px solid #FED7AA;margin-bottom:8px;">'
+            '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#92400E;margin-bottom:14px;">'
+            '💳 Equivalente SMART+ — preços concorrência (c/IVA €)</div>',
+            unsafe_allow_html=True,
+        )
+        _cp[_ck]["europcar_smart"] = st.number_input(
+            "Europcar — Medium",
+            min_value=0.0, max_value=500.0, step=0.01, format="%.2f",
+            value=float(_cp[_ck].get("europcar_smart", 0.0)),
+            key=f"europcar_smart_{_ck}",
+            help="Europcar: pacote Medium = equivalente ao SIXT SMART+",
+        )
+        _cp[_ck]["guerin_smart"] = st.number_input(
+            "Guerin — Premium Gold",
+            min_value=0.0, max_value=500.0, step=0.01, format="%.2f",
+            value=float(_cp[_ck].get("guerin_smart", 0.0)),
+            key=f"guerin_smart_{_ck}",
+            help="Guerin: pacote Premium Gold = equivalente ao SIXT SMART+",
+        )
+        _cp[_ck]["avis_smart"] = st.number_input(
+            "Avis — Veículo",
+            min_value=0.0, max_value=500.0, step=0.01, format="%.2f",
+            value=float(_cp[_ck].get("avis_smart", 0.0)),
+            key=f"avis_smart_{_ck}",
+            help="Avis: pacote Veículo = equivalente ao SIXT SMART+",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_in_ai:
+        st.markdown(
+            '<div style="background:#EFF6FF;border-radius:12px;padding:16px 20px;border:1px solid #BFDBFE;margin-bottom:8px;">'
+            '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#1E40AF;margin-bottom:14px;">'
+            '💎 Equivalente All Inclusive — preços concorrência (c/IVA €)</div>',
+            unsafe_allow_html=True,
+        )
+        _cp[_ck]["europcar_ai"] = st.number_input(
+            "Europcar — Premium",
+            min_value=0.0, max_value=500.0, step=0.01, format="%.2f",
+            value=float(_cp[_ck].get("europcar_ai", 0.0)),
+            key=f"europcar_ai_{_ck}",
+            help="Europcar: pacote Premium = equivalente ao SIXT All Inclusive",
+        )
+        _cp[_ck]["guerin_ai"] = st.number_input(
+            "Guerin — Platinum",
+            min_value=0.0, max_value=500.0, step=0.01, format="%.2f",
+            value=float(_cp[_ck].get("guerin_ai", 0.0)),
+            key=f"guerin_ai_{_ck}",
+            help="Guerin: pacote Platinum = equivalente ao SIXT All Inclusive",
+        )
+        _cp[_ck]["avis_ai"] = st.number_input(
+            "Avis — Veículo Plus",
+            min_value=0.0, max_value=500.0, step=0.01, format="%.2f",
+            value=float(_cp[_ck].get("avis_ai", 0.0)),
+            key=f"avis_ai_{_ck}",
+            help="Avis: pacote Veículo Plus = equivalente ao SIXT All Inclusive",
+        )
+        _cp[_ck]["hertz_ai"] = st.number_input(
+            "Hertz — All Inclusive",
+            min_value=0.0, max_value=500.0, step=0.01, format="%.2f",
+            value=float(_cp[_ck].get("hertz_ai", 0.0)),
+            key=f"hertz_ai_{_ck}",
+            help="Hertz: apenas All Inclusive",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.session_state["competitor_prices"] = _cp
+
+    # ── Calcular preços SIXT c/IVA ───────────────────────
+    _vat_f = vat_pct / 100
+    _sixt_smart_rack_vat    = result["smart_rack_new"] * (1 + _vat_f) if result.get("smart_rack_new") else None
+    _sixt_smart_counter_vat = result.get("smart_counter_vat")
+    _sixt_smart_online_vat  = result.get("smart_online_vat")
+    _sixt_ai_rack_vat       = result["ai_rack_new"] * (1 + _vat_f) if result.get("ai_rack_new") else None
+    _sixt_ai_counter_vat    = result.get("ai_counter_vat")
+    _sixt_ai_online_vat     = result.get("ai_online_vat")
+
+    # ── Recolher preços concorrência não-zero ─────────────
+    _d = _cp[_ck]
+    _comp_smart = {
+        "Europcar\nMedium":    _d["europcar_smart"] if _d["europcar_smart"] > 0 else None,
+        "Guerin\nPrem. Gold":  _d["guerin_smart"]   if _d["guerin_smart"]   > 0 else None,
+        "Avis\nVeículo":       _d["avis_smart"]      if _d["avis_smart"]     > 0 else None,
+    }
+    _comp_ai = {
+        "Europcar\nPremium":   _d["europcar_ai"] if _d["europcar_ai"] > 0 else None,
+        "Guerin\nPlatinum":    _d["guerin_ai"]   if _d["guerin_ai"]   > 0 else None,
+        "Avis\nVeículo Plus":  _d["avis_ai"]     if _d["avis_ai"]     > 0 else None,
+        "Hertz\nAll Incl.":    _d["hertz_ai"]    if _d["hertz_ai"]    > 0 else None,
+    }
+
+    _any_smart = any(v is not None for v in _comp_smart.values())
+    _any_ai    = any(v is not None for v in _comp_ai.values())
+
+    if not _any_smart and not _any_ai:
+        st.markdown(
+            '<div class="landing-box" style="margin-top:24px;">'
+            '<div class="landing-icon">🏁</div>'
+            '<div class="landing-title">Insira os preços da concorrência</div>'
+            '<div class="landing-sub">Preencha os campos acima com os preços da concorrência (c/IVA)<br>'
+            'para obter a análise e recomendações de desconto.</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+
+        st.markdown("---")
+
+        # ── Helper: calcular desconto necessário para igualar preço ──
+        def _disc_to_match(sixt_rack_vat, comp_price_vat):
+            if sixt_rack_vat and comp_price_vat and sixt_rack_vat > 0:
+                d = 1 - comp_price_vat / sixt_rack_vat
+                return max(0.0, min(d, 0.9999))
+            return None
+
+        def _position_label(sixt_price, comp_prices_dict):
+            valid = [v for v in comp_prices_dict.values() if v is not None]
+            if not valid or sixt_price is None:
+                return None, None, None
+            mn, mx = min(valid), max(valid)
+            avg = sum(valid) / len(valid)
+            if sixt_price < mn:
+                return "abaixo do mercado", "#10B981", "🟢"
+            elif sixt_price <= avg:
+                return "competitivo", "#3B82F6", "🔵"
+            elif sixt_price <= mx:
+                return "acima da média", "#F59E0B", "🟡"
+            else:
+                return "acima do mercado", "#EF4444", "🔴"
+
+        # ══════════════════════════════════════════════════
+        # ANÁLISE SMART+
+        # ══════════════════════════════════════════════════
+        if _any_smart and _sixt_smart_rack_vat is not None:
+
+            sec("Análise SMART+ vs Concorrência", "💳", "orange")
+
+            _valid_smart = {k: v for k, v in _comp_smart.items() if v is not None}
+            _smart_vals  = list(_valid_smart.values())
+            _smart_min   = min(_smart_vals)
+            _smart_max   = max(_smart_vals)
+            _smart_avg   = sum(_smart_vals) / len(_smart_vals)
+
+            _pos_lbl_cnt, _pos_col_cnt, _pos_dot_cnt = _position_label(_sixt_smart_counter_vat, _valid_smart)
+            _pos_lbl_onl, _pos_col_onl, _pos_dot_onl = _position_label(_sixt_smart_online_vat, _valid_smart)
+
+            _disc_smart_min = _disc_to_match(_sixt_smart_rack_vat, _smart_max)
+            _disc_smart_max = _disc_to_match(_sixt_smart_rack_vat, _smart_min)
+
+            ks1, ks2, ks3, ks4, ks5 = st.columns(5)
+            kpi(ks1, "SIXT SMART+ rack",       eur(_sixt_smart_rack_vat),    "Rack c/IVA (sem desconto)", "orange")
+            kpi(ks2, f"SIXT balcão {counter_discount_pct}%", eur(_sixt_smart_counter_vat),
+                f"{_pos_dot_cnt} {_pos_lbl_cnt}" if _pos_lbl_cnt else "—",
+                "green" if _pos_dot_cnt == "🟢" else ("blue" if _pos_dot_cnt == "🔵" else ("orange" if _pos_dot_cnt == "🟡" else "red")))
+            kpi(ks3, f"SIXT online {online_discount_pct}%",  eur(_sixt_smart_online_vat),
+                f"{_pos_dot_onl} {_pos_lbl_onl}" if _pos_lbl_onl else "—",
+                "green" if _pos_dot_onl == "🟢" else ("blue" if _pos_dot_onl == "🔵" else ("orange" if _pos_dot_onl == "🟡" else "red")))
+            kpi(ks4, "Mínimo concorrência",    eur(_smart_min),              f"Concorrente mais barato")
+            kpi(ks5, "Máximo concorrência",    eur(_smart_max),              f"Concorrente mais caro")
+
+            # Recomendação de desconto
+            st.markdown("")
+            _rec_smart_cols = st.columns(3)
+            with _rec_smart_cols[0]:
+                _disc_to_cheapest = _disc_to_match(_sixt_smart_rack_vat, _smart_min)
+                st.markdown(
+                    f'<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:12px;padding:14px 16px;">'
+                    f'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#92400E;margin-bottom:6px;">Igualar o mais barato</div>'
+                    f'<div style="font-size:20px;font-weight:800;color:#7C2D12;">{f"{_disc_to_cheapest*100:.1f}%" if _disc_to_cheapest is not None else "—"}</div>'
+                    f'<div style="font-size:11px;color:#92400E;margin-top:4px;">desconto balcão necessário<br>para igualar {eur(_smart_min)}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with _rec_smart_cols[1]:
+                _disc_to_avg = _disc_to_match(_sixt_smart_rack_vat, _smart_avg)
+                st.markdown(
+                    f'<div style="background:#DBEAFE;border:1px solid #BFDBFE;border-radius:12px;padding:14px 16px;">'
+                    f'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#1E40AF;margin-bottom:6px;">Igualar a média</div>'
+                    f'<div style="font-size:20px;font-weight:800;color:#1E3A8A;">{f"{_disc_to_avg*100:.1f}%" if _disc_to_avg is not None else "—"}</div>'
+                    f'<div style="font-size:11px;color:#1E40AF;margin-top:4px;">desconto balcão necessário<br>para igualar {eur(_smart_avg)}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with _rec_smart_cols[2]:
+                _disc_to_most_exp = _disc_to_match(_sixt_smart_rack_vat, _smart_max)
+                st.markdown(
+                    f'<div style="background:#DCFCE7;border:1px solid #BBF7D0;border-radius:12px;padding:14px 16px;">'
+                    f'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#15803D;margin-bottom:6px;">Igualar o mais caro</div>'
+                    f'<div style="font-size:20px;font-weight:800;color:#14532D;">{f"{_disc_to_most_exp*100:.1f}%" if _disc_to_most_exp is not None else "—"}</div>'
+                    f'<div style="font-size:11px;color:#15803D;margin-top:4px;">desconto balcão necessário<br>para igualar {eur(_smart_max)}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+            # ── Tabela de posicionamento SMART+ ──────────
+            st.markdown("")
+            _smart_rows = []
+            for _cname, _cprice in _valid_smart.items():
+                _gap = (_sixt_smart_counter_vat - _cprice) if _sixt_smart_counter_vat is not None else None
+                _disc_needed = _disc_to_match(_sixt_smart_rack_vat, _cprice)
+                _status = "✓ Competitivo" if (_gap is not None and _gap <= 0) else ("⚠ Mais caro" if _gap is not None else "—")
+                _smart_rows.append({
+                    "Concorrente": _cname.replace("\n", " "),
+                    "Preço concorrência (c/IVA)": _cprice,
+                    f"SIXT balcão {counter_discount_pct}% (c/IVA)": _sixt_smart_counter_vat,
+                    "Diferença (€)": _gap,
+                    "Desconto balcão p/ igualar (%)": _disc_needed * 100 if _disc_needed is not None else None,
+                    "Estado": _status,
+                })
+            _df_smart_comp = pd.DataFrame(_smart_rows)
+
+            with st.expander("📋  Tabela detalhe SMART+ por concorrente", expanded=True):
+                _fmt_smart = _df_smart_comp.copy()
+                for _col in ["Preço concorrência (c/IVA)", f"SIXT balcão {counter_discount_pct}% (c/IVA)", "Diferença (€)"]:
+                    _fmt_smart[_col] = _fmt_smart[_col].apply(eur)
+                _fmt_smart["Desconto balcão p/ igualar (%)"] = _fmt_smart["Desconto balcão p/ igualar (%)"].apply(
+                    lambda x: f"{x:.1f}%" if x is not None and not (isinstance(x, float) and pd.isna(x)) else "—"
+                )
+                st.dataframe(_fmt_smart, hide_index=True)
+
+            # ── Gráfico SMART+ ───────────────────────────
+            _smart_bar_labels = (
+                [f"SIXT\nrack"] +
+                ([f"SIXT\nbalcão {counter_discount_pct}%"] if _sixt_smart_counter_vat else []) +
+                ([f"SIXT\nonline {online_discount_pct}%"]  if _sixt_smart_online_vat  else []) +
+                [k.replace("\n", " ") for k in _valid_smart.keys()]
+            )
+            _smart_bar_values = (
+                [_sixt_smart_rack_vat] +
+                ([_sixt_smart_counter_vat] if _sixt_smart_counter_vat else []) +
+                ([_sixt_smart_online_vat]  if _sixt_smart_online_vat  else []) +
+                list(_valid_smart.values())
+            )
+            _n_sixt_smart = 1 + (1 if _sixt_smart_counter_vat else 0) + (1 if _sixt_smart_online_vat else 0)
+            _smart_bar_colors = (
+                ["#FF5F00"] + ["#FDBA74"] * (_n_sixt_smart - 1) +
+                ["#94A3B8"] * len(_valid_smart)
+            )
+            _fig_smart = go.Figure()
+            _fig_smart.add_trace(go.Bar(
+                x=_smart_bar_labels, y=_smart_bar_values,
+                marker_color=_smart_bar_colors,
+                text=[f"{v:,.2f}" if v is not None else "" for v in _smart_bar_values],
+                textposition="outside", textfont=dict(size=10, family="Inter"),
+                hovertemplate="%{x}<br><b>%{y:.2f} €</b><extra></extra>",
+            ))
+            for _ref, _lbl, _pos in [
+                (_smart_min, f"mín. concorrência {eur(_smart_min)}", "bottom right"),
+                (_smart_max, f"máx. concorrência {eur(_smart_max)}", "top right"),
+            ]:
+                _fig_smart.add_hline(
+                    y=_ref, line_dash="dot", line_color="#94A3B8", line_width=1,
+                    annotation_text=_lbl, annotation_position=_pos,
+                    annotation_font=dict(size=10, color="#64748B"),
+                )
+            _fig_smart.update_layout(
+                title=dict(text=f"SMART+ — {group} · {days} dia{'s' if days != 1 else ''} · c/IVA", font=dict(size=13, family="Inter", color="#0F172A")),
+                yaxis=dict(title="EUR c/IVA", gridcolor="#F1F5F9"),
+                height=380, margin=dict(l=40, r=20, t=50, b=40),
+                plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
+                font=dict(family="Inter"),
+            )
+            st.plotly_chart(_fig_smart, use_container_width=True)
+
+        # ══════════════════════════════════════════════════
+        # ANÁLISE ALL INCLUSIVE
+        # ══════════════════════════════════════════════════
+        if _any_ai and _sixt_ai_rack_vat is not None:
+
+            sec("Análise All Inclusive vs Concorrência", "💎", "blue")
+
+            _valid_ai = {k: v for k, v in _comp_ai.items() if v is not None}
+            _ai_vals  = list(_valid_ai.values())
+            _ai_min   = min(_ai_vals)
+            _ai_max   = max(_ai_vals)
+            _ai_avg   = sum(_ai_vals) / len(_ai_vals)
+
+            _pos_lbl_ai_cnt, _pos_col_ai_cnt, _pos_dot_ai_cnt = _position_label(_sixt_ai_counter_vat, _valid_ai)
+            _pos_lbl_ai_onl, _pos_col_ai_onl, _pos_dot_ai_onl = _position_label(_sixt_ai_online_vat,  _valid_ai)
+
+            ka1, ka2, ka3, ka4, ka5 = st.columns(5)
+            kpi(ka1, "SIXT AI rack",              eur(_sixt_ai_rack_vat),    "Rack c/IVA (sem desconto)", "blue")
+            kpi(ka2, f"SIXT balcão {ai_counter_pct:.1f}%", eur(_sixt_ai_counter_vat),
+                f"{_pos_dot_ai_cnt} {_pos_lbl_ai_cnt}" if _pos_lbl_ai_cnt else "—",
+                "green" if _pos_dot_ai_cnt == "🟢" else ("blue" if _pos_dot_ai_cnt == "🔵" else ("orange" if _pos_dot_ai_cnt == "🟡" else "red")))
+            kpi(ka3, f"SIXT online {ai_online_pct:.1f}%",  eur(_sixt_ai_online_vat),
+                f"{_pos_dot_ai_onl} {_pos_lbl_ai_onl}" if _pos_lbl_ai_onl else "—",
+                "green" if _pos_dot_ai_onl == "🟢" else ("blue" if _pos_dot_ai_onl == "🔵" else ("orange" if _pos_dot_ai_onl == "🟡" else "red")))
+            kpi(ka4, "Mínimo concorrência",       eur(_ai_min),              "Concorrente mais barato")
+            kpi(ka5, "Máximo concorrência",       eur(_ai_max),              "Concorrente mais caro")
+
+            st.markdown("")
+            _rec_ai_cols = st.columns(3)
+            with _rec_ai_cols[0]:
+                _disc_ai_cheapest = _disc_to_match(_sixt_ai_rack_vat, _ai_min)
+                st.markdown(
+                    f'<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:12px;padding:14px 16px;">'
+                    f'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#92400E;margin-bottom:6px;">Igualar o mais barato</div>'
+                    f'<div style="font-size:20px;font-weight:800;color:#7C2D12;">{f"{_disc_ai_cheapest*100:.1f}%" if _disc_ai_cheapest is not None else "—"}</div>'
+                    f'<div style="font-size:11px;color:#92400E;margin-top:4px;">desconto balcão necessário<br>para igualar {eur(_ai_min)}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with _rec_ai_cols[1]:
+                _disc_ai_avg = _disc_to_match(_sixt_ai_rack_vat, _ai_avg)
+                st.markdown(
+                    f'<div style="background:#DBEAFE;border:1px solid #BFDBFE;border-radius:12px;padding:14px 16px;">'
+                    f'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#1E40AF;margin-bottom:6px;">Igualar a média</div>'
+                    f'<div style="font-size:20px;font-weight:800;color:#1E3A8A;">{f"{_disc_ai_avg*100:.1f}%" if _disc_ai_avg is not None else "—"}</div>'
+                    f'<div style="font-size:11px;color:#1E40AF;margin-top:4px;">desconto balcão necessário<br>para igualar {eur(_ai_avg)}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with _rec_ai_cols[2]:
+                _disc_ai_most_exp = _disc_to_match(_sixt_ai_rack_vat, _ai_max)
+                st.markdown(
+                    f'<div style="background:#DCFCE7;border:1px solid #BBF7D0;border-radius:12px;padding:14px 16px;">'
+                    f'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#15803D;margin-bottom:6px;">Igualar o mais caro</div>'
+                    f'<div style="font-size:20px;font-weight:800;color:#14532D;">{f"{_disc_ai_most_exp*100:.1f}%" if _disc_ai_most_exp is not None else "—"}</div>'
+                    f'<div style="font-size:11px;color:#15803D;margin-top:4px;">desconto balcão necessário<br>para igualar {eur(_ai_max)}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+            _ai_rows = []
+            for _cname, _cprice in _valid_ai.items():
+                _gap = (_sixt_ai_counter_vat - _cprice) if _sixt_ai_counter_vat is not None else None
+                _disc_needed = _disc_to_match(_sixt_ai_rack_vat, _cprice)
+                _status = "✓ Competitivo" if (_gap is not None and _gap <= 0) else ("⚠ Mais caro" if _gap is not None else "—")
+                _ai_rows.append({
+                    "Concorrente": _cname.replace("\n", " "),
+                    "Preço concorrência (c/IVA)": _cprice,
+                    f"SIXT balcão {ai_counter_pct:.1f}% (c/IVA)": _sixt_ai_counter_vat,
+                    "Diferença (€)": _gap,
+                    "Desconto balcão p/ igualar (%)": _disc_needed * 100 if _disc_needed is not None else None,
+                    "Estado": _status,
+                })
+            _df_ai_comp = pd.DataFrame(_ai_rows)
+
+            with st.expander("📋  Tabela detalhe All Inclusive por concorrente", expanded=True):
+                _fmt_ai = _df_ai_comp.copy()
+                for _col in ["Preço concorrência (c/IVA)", f"SIXT balcão {ai_counter_pct:.1f}% (c/IVA)", "Diferença (€)"]:
+                    _fmt_ai[_col] = _fmt_ai[_col].apply(eur)
+                _fmt_ai["Desconto balcão p/ igualar (%)"] = _fmt_ai["Desconto balcão p/ igualar (%)"].apply(
+                    lambda x: f"{x:.1f}%" if x is not None and not (isinstance(x, float) and pd.isna(x)) else "—"
+                )
+                st.dataframe(_fmt_ai, hide_index=True)
+
+            # ── Gráfico AI ───────────────────────────────
+            _ai_bar_labels = (
+                ["SIXT\nrack"] +
+                ([f"SIXT\nbalcão {ai_counter_pct:.1f}%"] if _sixt_ai_counter_vat else []) +
+                ([f"SIXT\nonline {ai_online_pct:.1f}%"]   if _sixt_ai_online_vat  else []) +
+                [k.replace("\n", " ") for k in _valid_ai.keys()]
+            )
+            _ai_bar_values = (
+                [_sixt_ai_rack_vat] +
+                ([_sixt_ai_counter_vat] if _sixt_ai_counter_vat else []) +
+                ([_sixt_ai_online_vat]  if _sixt_ai_online_vat  else []) +
+                list(_valid_ai.values())
+            )
+            _n_sixt_ai = 1 + (1 if _sixt_ai_counter_vat else 0) + (1 if _sixt_ai_online_vat else 0)
+            _ai_bar_colors = ["#1D4ED8"] + ["#93C5FD"] * (_n_sixt_ai - 1) + ["#94A3B8"] * len(_valid_ai)
+            _fig_ai = go.Figure()
+            _fig_ai.add_trace(go.Bar(
+                x=_ai_bar_labels, y=_ai_bar_values,
+                marker_color=_ai_bar_colors,
+                text=[f"{v:,.2f}" if v is not None else "" for v in _ai_bar_values],
+                textposition="outside", textfont=dict(size=10, family="Inter"),
+                hovertemplate="%{x}<br><b>%{y:.2f} €</b><extra></extra>",
+            ))
+            for _ref, _lbl, _pos in [
+                (_ai_min, f"mín. concorrência {eur(_ai_min)}", "bottom right"),
+                (_ai_max, f"máx. concorrência {eur(_ai_max)}", "top right"),
+            ]:
+                _fig_ai.add_hline(
+                    y=_ref, line_dash="dot", line_color="#94A3B8", line_width=1,
+                    annotation_text=_lbl, annotation_position=_pos,
+                    annotation_font=dict(size=10, color="#64748B"),
+                )
+            _fig_ai.update_layout(
+                title=dict(text=f"All Inclusive — {group} · {days} dia{'s' if days != 1 else ''} · c/IVA", font=dict(size=13, family="Inter", color="#0F172A")),
+                yaxis=dict(title="EUR c/IVA", gridcolor="#F1F5F9"),
+                height=380, margin=dict(l=40, r=20, t=50, b=40),
+                plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
+                font=dict(family="Inter"),
+            )
+            st.plotly_chart(_fig_ai, use_container_width=True)
+
+        # ══════════════════════════════════════════════════
+        # RESUMO DE POSICIONAMENTO
+        # ══════════════════════════════════════════════════
+        if (_any_smart and _sixt_smart_rack_vat) or (_any_ai and _sixt_ai_rack_vat):
+            sec("Resumo — Limites de Desconto para Competitividade", "🎯", "green")
+
+            _solver_vl = result.get("ai_counter_discount_valid_low")
+            _solver_vh = result.get("ai_counter_discount_valid_high")
+
+            _smart_comp_valid = _any_smart and _sixt_smart_rack_vat is not None
+            _ai_comp_valid    = _any_ai    and _sixt_ai_rack_vat    is not None
+
+            _disc_smart_to_cheapest = _disc_to_match(_sixt_smart_rack_vat, min(_valid_smart.values())) if _smart_comp_valid else None
+            _disc_smart_to_most_exp = _disc_to_match(_sixt_smart_rack_vat, max(_valid_smart.values())) if _smart_comp_valid else None
+            _disc_ai_to_cheapest    = _disc_to_match(_sixt_ai_rack_vat, min(_valid_ai.values()))     if _ai_comp_valid    else None
+            _disc_ai_to_most_exp    = _disc_to_match(_sixt_ai_rack_vat, max(_valid_ai.values()))     if _ai_comp_valid    else None
+
+            st.markdown(
+                f"""
+                <div style="background:white;border:1px solid #E2E8F0;border-radius:16px;padding:24px;margin-bottom:16px;">
+                <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:#475569;margin-bottom:16px;">
+                    Zona de conforto competitivo — {group} · {days} dia{'s' if days != 1 else ''}</div>
+                {"".join([f'''
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:12px;font-weight:700;color:#FF5F00;margin-bottom:6px;">💳 SMART+ — desconto balcão recomendado</div>
+                    <div style="background:#F1F5F9;border-radius:8px;padding:4px;display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;">
+                        <span>Igualar mais barato: <strong style="color:#7C2D12;">{f"{_disc_smart_to_cheapest*100:.1f}%" if _disc_smart_to_cheapest is not None else "—"}</strong></span>
+                        &nbsp;·&nbsp;
+                        <span>Igualar mais caro: <strong style="color:#14532D;">{f"{_disc_smart_to_most_exp*100:.1f}%" if _disc_smart_to_most_exp is not None else "—"}</strong></span>
+                        &nbsp;·&nbsp;
+                        <span>Atual aplicado: <strong style="color:#0F172A;">{counter_discount_pct:.1f}%</strong></span>
+                    </div>
+                </div>''' if _smart_comp_valid else ""])}
+                {"".join([f'''
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:12px;font-weight:700;color:#1D4ED8;margin-bottom:6px;">💎 All Inclusive — desconto balcão recomendado</div>
+                    <div style="background:#F1F5F9;border-radius:8px;padding:4px;display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;">
+                        <span>Igualar mais barato: <strong style="color:#7C2D12;">{f"{_disc_ai_to_cheapest*100:.1f}%" if _disc_ai_to_cheapest is not None else "—"}</strong></span>
+                        &nbsp;·&nbsp;
+                        <span>Igualar mais caro: <strong style="color:#14532D;">{f"{_disc_ai_to_most_exp*100:.1f}%" if _disc_ai_to_most_exp is not None else "—"}</strong></span>
+                        &nbsp;·&nbsp;
+                        <span>Solver AI: <strong style="color:#0F172A;">{f"{ai_counter_pct:.1f}%" if ai_counter_pct else "—"}</strong></span>
+                        {"&nbsp;·&nbsp;<span>Intervalo solver: <strong style='color:#0F172A;'>[" + f"{_solver_vl*100:.1f}% ; {_solver_vh*100:.1f}%" + "]</strong></span>" if _solver_vl is not None and _solver_vh is not None else ""}
+                    </div>
+                </div>''' if _ai_comp_valid else ""])}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if _ai_comp_valid and _solver_vl is not None and _solver_vh is not None:
+                _overlap_low  = max(_solver_vl, _disc_ai_to_most_exp or 0.0)
+                _overlap_high = min(_solver_vh, _disc_ai_to_cheapest or 1.0)
+                if _overlap_low <= _overlap_high:
+                    st.success(
+                        f"✅  Zona competitiva e financeiramente válida para AI balcão: "
+                        f"**[{_overlap_low*100:.1f}% ; {_overlap_high*100:.1f}%]** — "
+                        f"SIXT fica abaixo de todos os concorrentes e cumpre as regras de pricing."
+                    )
+                else:
+                    st.warning(
+                        f"⚠️  Não existe sobreposição entre o intervalo do solver "
+                        f"([{_solver_vl*100:.1f}% ; {_solver_vh*100:.1f}%]) e o intervalo competitivo "
+                        f"([{(_disc_ai_to_most_exp or 0)*100:.1f}% ; {(_disc_ai_to_cheapest or 1)*100:.1f}%]). "
+                        f"Ajuste os parâmetros de pricing ou reveja os preços da concorrência."
+                    )
+
+
+# ─────────────────────────────────────────────────────────
+# TAB 4 — OPTIMIZADOR GLOBAL
 # ─────────────────────────────────────────────────────────
 
 with tab_opt:
