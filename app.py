@@ -2617,11 +2617,18 @@ with tab_concorrencia:
                 online_extra_discount=online_extra_pct / 100,
             )
             if _cl not in _sixt_cl_raw:
-                _sixt_cl_raw[_cl] = {"smart_counter_vat": [], "ai_counter_vat": []}
+                _sixt_cl_raw[_cl] = {"smart_rack_vat": [], "smart_counter_vat": [], "smart_online_vat": [], "ai_counter_vat": [], "ai_online_vat": []}
+            _rack_vat = _r2["smart_rack_new"] * (1 + vat_pct / 100) if _r2.get("smart_rack_new") else None
+            if _rack_vat is not None:
+                _sixt_cl_raw[_cl]["smart_rack_vat"].append(_rack_vat)
             if _r2.get("smart_counter_vat") is not None:
                 _sixt_cl_raw[_cl]["smart_counter_vat"].append(_r2["smart_counter_vat"])
+            if _r2.get("smart_online_vat") is not None:
+                _sixt_cl_raw[_cl]["smart_online_vat"].append(_r2["smart_online_vat"])
             if _r2.get("ai_counter_vat") is not None:
                 _sixt_cl_raw[_cl]["ai_counter_vat"].append(_r2["ai_counter_vat"])
+            if _r2.get("ai_online_vat") is not None:
+                _sixt_cl_raw[_cl]["ai_online_vat"].append(_r2["ai_online_vat"])
 
         _sixt_cl_avg = {}
         for _cl, _flds in _sixt_cl_raw.items():
@@ -2661,6 +2668,127 @@ with tab_concorrencia:
             if _c not in ["Cluster", "# ACRISS"]:
                 _fmt_cl[_c] = _fmt_cl[_c].apply(eur)
         st.dataframe(_fmt_cl, hide_index=True)
+
+        st.markdown("")
+
+        # ── Gráfico Macro por Cluster (estilo screenshot) ──
+        sec("Visão Macro por Cluster — SIXT vs Concorrência", "📊", "orange")
+        _avail_clusters = sorted(_sixt_cl_avg.keys())
+        _cluster_options = {f"{_cl} — {_CLUSTER_MAP.get(_cl, _cl)}": _cl for _cl in _avail_clusters if _cl in _CLUSTER_MAP}
+
+        _col_sel1, _col_sel2 = st.columns([2, 2])
+        with _col_sel1:
+            _selected_cluster_label = st.selectbox(
+                "Cluster",
+                options=list(_cluster_options.keys()),
+                key="macro_cluster_selector",
+            )
+        with _col_sel2:
+            _macro_tipo = st.selectbox(
+                "Tipo de pacote SIXT",
+                options=["SMART+", "All Inclusive"],
+                key="macro_tipo_selector",
+            )
+
+        _sel_cl = _cluster_options.get(_selected_cluster_label)
+
+        if _sel_cl:
+            _is_smart = _macro_tipo == "SMART+"
+            _tipo_key = "smart" if _is_smart else "ai"
+
+            # Preços SIXT para o cluster selecionado (€/dia c/IVA)
+            _s_rack  = round(_sixt_cl_avg[_sel_cl]["smart_rack_vat"] / days, 2)    if _sixt_cl_avg.get(_sel_cl, {}).get("smart_rack_vat") else None
+            _s_bq    = round(_sixt_cl_avg[_sel_cl]["smart_counter_vat"] / days, 2) if _sixt_cl_avg.get(_sel_cl, {}).get("smart_counter_vat") else None
+            _s_on    = round(_sixt_cl_avg[_sel_cl]["smart_online_vat"] / days, 2)  if _sixt_cl_avg.get(_sel_cl, {}).get("smart_online_vat") else None
+            _ai_bq   = round(_sixt_cl_avg[_sel_cl]["ai_counter_vat"] / days, 2)    if _sixt_cl_avg.get(_sel_cl, {}).get("ai_counter_vat") else None
+            _ai_on   = round(_sixt_cl_avg[_sel_cl]["ai_online_vat"] / days, 2)     if _sixt_cl_avg.get(_sel_cl, {}).get("ai_online_vat") else None
+
+            # Concorrentes para este cluster
+            _comp_fields_tipo = [_f for _f in _ALL_COMP_FIELDS if _FIELD_TYPE[_f] == _tipo_key]
+            _comp_vals  = {_FIELD_LABEL[_f]: _cl_avg.get(_sel_cl, {}).get(_f) for _f in _comp_fields_tipo}
+
+            # Construir barras
+            _bar_names  = []
+            _bar_vals   = []
+            _bar_colors = []
+            _bar_text   = []
+
+            if _is_smart:
+                _sixt_bars = [
+                    (f"SIXT rack",                                  _s_rack,  "#FF5F00"),
+                    (f"SIXT balcão {counter_discount_pct}%",        _s_bq,    "#FCA16A"),
+                    (f"SIXT online {online_discount_pct}%",         _s_on,    "#FDD4A8"),
+                ]
+            else:
+                _sixt_bars = [
+                    (f"SIXT rack",                                  _s_rack,  "#FF5F00"),
+                    (f"SIXT AI balcão {ai_counter_pct:.1f}%",       _ai_bq,   "#60A5FA"),
+                    (f"SIXT AI online",                             _ai_on,   "#BAE6FD"),
+                ]
+
+            for _lbl, _v, _col in _sixt_bars:
+                _bar_names.append(_lbl)
+                _bar_vals.append(_v)
+                _bar_colors.append(_col)
+                _bar_text.append(f"{_v:.2f}" if _v else "—")
+
+            _comp_colors_list = ["#94A3B8", "#64748B", "#CBD5E1", "#475569"]
+            for _ci, (_lbl, _v) in enumerate(_comp_vals.items()):
+                _bar_names.append(_lbl)
+                _bar_vals.append(_v)
+                _bar_colors.append(_comp_colors_list[_ci % len(_comp_colors_list)])
+                _bar_text.append(f"{_v:.2f}" if _v else "—")
+
+            # Linha de referência: média concorrentes
+            _comp_only = [v for v in _comp_vals.values() if v is not None]
+            _comp_ref  = round(sum(_comp_only) / len(_comp_only), 2) if _comp_only else None
+
+            _fig_macro = go.Figure()
+            _fig_macro.add_trace(go.Bar(
+                x=_bar_names,
+                y=_bar_vals,
+                marker_color=_bar_colors,
+                text=_bar_text,
+                textposition="outside",
+                textfont=dict(size=10, family="Inter", color="#1E293B"),
+                hovertemplate="%{x}<br><b>%{y:.2f} €/dia c/IVA</b><extra></extra>",
+                showlegend=False,
+            ))
+
+            if _comp_ref is not None:
+                _fig_macro.add_hline(
+                    y=_comp_ref,
+                    line_dash="dot",
+                    line_color="#64748B",
+                    line_width=1.5,
+                    annotation_text=f"Média concorrência {_comp_ref:.2f} €",
+                    annotation_position="top right",
+                    annotation_font=dict(size=10, color="#64748B"),
+                )
+
+            _fig_macro.update_layout(
+                title=dict(
+                    text=f"{_macro_tipo} — {_selected_cluster_label} · {days} dia{'s' if days != 1 else ''} · €/dia c/IVA",
+                    font=dict(size=13, family="Inter", color="#0F172A"),
+                    x=0,
+                ),
+                yaxis=dict(title="EUR c/IVA", gridcolor="#F1F5F9", zeroline=False),
+                xaxis=dict(tickfont=dict(size=11, family="Inter")),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(family="Inter"),
+                height=420,
+                margin=dict(l=40, r=30, t=70, b=60),
+            )
+            st.plotly_chart(_fig_macro, use_container_width=True)
+
+            # Legenda informativa
+            _n_acriss_cl = len(_cl_acriss_count.get(_sel_cl, set()))
+            st.caption(
+                f"Médias calculadas sobre **{_n_acriss_cl} código{'s' if _n_acriss_cl != 1 else ''} ACRISS** "
+                f"do cluster **{_selected_cluster_label}** · "
+                f"SIXT para **{days} dia{'s' if days != 1 else ''}** ÷ {days} = valor diário equivalente"
+            )
 
         st.markdown("")
 
