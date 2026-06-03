@@ -2617,7 +2617,7 @@ with tab_concorrencia:
                 online_extra_discount=online_extra_pct / 100,
             )
             if _cl not in _sixt_cl_raw:
-                _sixt_cl_raw[_cl] = {"smart_rack_vat": [], "smart_counter_vat": [], "smart_online_vat": [], "ai_counter_vat": [], "ai_online_vat": []}
+                _sixt_cl_raw[_cl] = {"smart_rack_vat": [], "smart_counter_vat": [], "smart_online_vat": [], "ai_rack_vat": [], "ai_counter_vat": [], "ai_online_vat": []}
             _rack_vat = _r2["smart_rack_new"] * (1 + vat_pct / 100) if _r2.get("smart_rack_new") else None
             if _rack_vat is not None:
                 _sixt_cl_raw[_cl]["smart_rack_vat"].append(_rack_vat)
@@ -2625,6 +2625,9 @@ with tab_concorrencia:
                 _sixt_cl_raw[_cl]["smart_counter_vat"].append(_r2["smart_counter_vat"])
             if _r2.get("smart_online_vat") is not None:
                 _sixt_cl_raw[_cl]["smart_online_vat"].append(_r2["smart_online_vat"])
+            _ai_rack_vat = _r2["ai_rack_new"] * (1 + vat_pct / 100) if _r2.get("ai_rack_new") else None
+            if _ai_rack_vat is not None:
+                _sixt_cl_raw[_cl]["ai_rack_vat"].append(_ai_rack_vat)
             if _r2.get("ai_counter_vat") is not None:
                 _sixt_cl_raw[_cl]["ai_counter_vat"].append(_r2["ai_counter_vat"])
             if _r2.get("ai_online_vat") is not None:
@@ -2700,6 +2703,7 @@ with tab_concorrencia:
             _s_rack  = round(_sixt_cl_avg[_sel_cl]["smart_rack_vat"] / days, 2)    if _sixt_cl_avg.get(_sel_cl, {}).get("smart_rack_vat") else None
             _s_bq    = round(_sixt_cl_avg[_sel_cl]["smart_counter_vat"] / days, 2) if _sixt_cl_avg.get(_sel_cl, {}).get("smart_counter_vat") else None
             _s_on    = round(_sixt_cl_avg[_sel_cl]["smart_online_vat"] / days, 2)  if _sixt_cl_avg.get(_sel_cl, {}).get("smart_online_vat") else None
+            _ai_rack = round(_sixt_cl_avg[_sel_cl]["ai_rack_vat"] / days, 2)       if _sixt_cl_avg.get(_sel_cl, {}).get("ai_rack_vat") else None
             _ai_bq   = round(_sixt_cl_avg[_sel_cl]["ai_counter_vat"] / days, 2)    if _sixt_cl_avg.get(_sel_cl, {}).get("ai_counter_vat") else None
             _ai_on   = round(_sixt_cl_avg[_sel_cl]["ai_online_vat"] / days, 2)     if _sixt_cl_avg.get(_sel_cl, {}).get("ai_online_vat") else None
 
@@ -2721,7 +2725,7 @@ with tab_concorrencia:
                 ]
             else:
                 _sixt_bars = [
-                    (f"SIXT rack",                                  _s_rack,  "#FF5F00"),
+                    (f"SIXT rack AI",                               _ai_rack, "#FF5F00"),
                     (f"SIXT AI balcão {ai_counter_pct:.1f}%",       _ai_bq,   "#60A5FA"),
                     (f"SIXT AI online",                             _ai_on,   "#BAE6FD"),
                 ]
