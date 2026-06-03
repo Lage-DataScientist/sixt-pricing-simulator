@@ -2543,6 +2543,221 @@ with tab_concorrencia:
                             f"Ajuste os descontos ou reveja os dados da concorrência."
                         )
 
+        # ══════════════════════════════════════════════════
+        # ANÁLISE POR CLUSTER DE SEGMENTO
+        # ══════════════════════════════════════════════════
+        st.markdown("---")
+        sec("Análise Agregada por Cluster de Segmento", "📊", "blue")
+
+        _CLUSTER_MAP = {
+            "M": "Minis",        "E": "Económicos",  "C": "Compactos",
+            "I": "Intermédios",  "F": "Full Size",   "P": "Premium",
+            "L": "Luxury",       "S": "Standard",    "X": "Extraordinary",
+        }
+        _ALL_COMP_FIELDS = [
+            "europcar_smart", "europcar_ai",
+            "guerin_smart",   "guerin_ai",
+            "avis_smart",     "avis_ai",
+            "hertz_ai",
+        ]
+        _FIELD_LABEL = {
+            "europcar_smart": "Europcar Medium",
+            "europcar_ai":    "Europcar Premium",
+            "guerin_smart":   "Guerin Prem.Gold",
+            "guerin_ai":      "Guerin Platinum",
+            "avis_smart":     "Avis Veículo",
+            "avis_ai":        "Avis Veíc.Plus",
+            "hertz_ai":       "Hertz SuperCover",
+        }
+        _FIELD_TYPE = {
+            "europcar_smart": "smart", "europcar_ai": "ai",
+            "guerin_smart":   "smart", "guerin_ai":   "ai",
+            "avis_smart":     "smart", "avis_ai":     "ai",
+            "hertz_ai":       "ai",
+        }
+
+        # ── Agregar preços da BD por cluster ───────────────
+        _cl_raw = {}
+        _cl_acriss_count = {}
+        for _ac, _pd in comp_bd.items():
+            _cl = _ac[0].upper() if _ac else ""
+            if _cl not in _CLUSTER_MAP:
+                continue
+            if _cl not in _cl_raw:
+                _cl_raw[_cl] = {f: [] for f in _ALL_COMP_FIELDS}
+                _cl_acriss_count[_cl] = set()
+            _cl_acriss_count[_cl].add(_ac)
+            for _f, _p in _pd.items():
+                if _f in _cl_raw[_cl] and _p is not None:
+                    _cl_raw[_cl][_f].append(_p)
+
+        _cl_avg = {}
+        for _cl in sorted(_cl_raw.keys()):
+            _cl_avg[_cl] = {}
+            for _f in _ALL_COMP_FIELDS:
+                _ps = _cl_raw[_cl][_f]
+                _cl_avg[_cl][_f] = round(sum(_ps) / len(_ps), 2) if _ps else None
+
+        # ── Calcular SIXT médio por cluster (balcão, dias selecionados) ──
+        _sixt_cl_raw = {}
+        for _g in matrix_data["groups"]:
+            _cl = _g[0].upper() if _g else ""
+            if _cl not in _CLUSTER_MAP:
+                continue
+            _r2 = calculate_pricing(
+                matrix_data=matrix_data, group=_g, days=days,
+                counter_discount=counter_discount_pct / 100,
+                online_discount=online_discount_pct / 100,
+                bf_weight=bf_weight_pct / 100,
+                vat=vat_pct / 100,
+                easy_counter_discount=easy_counter_pct / 100,
+                tg_min_iva=tg_min_iva,
+                easy_margin_min=easy_margin_min,
+                easy_margin_max=easy_margin_max,
+                online_extra_discount=online_extra_pct / 100,
+            )
+            if _cl not in _sixt_cl_raw:
+                _sixt_cl_raw[_cl] = {"smart_counter_vat": [], "ai_counter_vat": []}
+            if _r2.get("smart_counter_vat") is not None:
+                _sixt_cl_raw[_cl]["smart_counter_vat"].append(_r2["smart_counter_vat"])
+            if _r2.get("ai_counter_vat") is not None:
+                _sixt_cl_raw[_cl]["ai_counter_vat"].append(_r2["ai_counter_vat"])
+
+        _sixt_cl_avg = {}
+        for _cl, _flds in _sixt_cl_raw.items():
+            _sixt_cl_avg[_cl] = {}
+            for _fk, _vs in _flds.items():
+                _sixt_cl_avg[_cl][_fk] = round(sum(_vs) / len(_vs), 2) if _vs else None
+
+        # ── Tabela resumo por cluster ──────────────────────
+        st.markdown(
+            f'<div style="font-size:12px;color:#64748B;margin-bottom:12px;">'
+            f'Preços médios em <strong>€/dia c/IVA</strong> por cluster · '
+            f'SIXT calculado para <strong>{days} dia{"s" if days != 1 else ""}</strong> ÷ dias = equivalente diário</div>',
+            unsafe_allow_html=True,
+        )
+
+        _cl_table_rows = []
+        for _cl in sorted(_cl_avg.keys()):
+            _row = {
+                "Cluster": f"{_cl} — {_CLUSTER_MAP[_cl]}",
+                "# ACRISS": len(_cl_acriss_count.get(_cl, set())),
+                "SIXT SMART+ balcão": (
+                    round(_sixt_cl_avg[_cl]["smart_counter_vat"] / days, 2)
+                    if _cl in _sixt_cl_avg and _sixt_cl_avg[_cl].get("smart_counter_vat") else None
+                ),
+                "SIXT AI balcão": (
+                    round(_sixt_cl_avg[_cl]["ai_counter_vat"] / days, 2)
+                    if _cl in _sixt_cl_avg and _sixt_cl_avg[_cl].get("ai_counter_vat") else None
+                ),
+            }
+            for _f in _ALL_COMP_FIELDS:
+                _row[_FIELD_LABEL[_f]] = _cl_avg[_cl].get(_f)
+            _cl_table_rows.append(_row)
+
+        _df_cl = pd.DataFrame(_cl_table_rows)
+        _fmt_cl = _df_cl.copy()
+        for _c in _fmt_cl.columns:
+            if _c not in ["Cluster", "# ACRISS"]:
+                _fmt_cl[_c] = _fmt_cl[_c].apply(eur)
+        st.dataframe(_fmt_cl, hide_index=True)
+
+        st.markdown("")
+
+        # ── Gráfico SMART+ por cluster ────────────────────
+        _clusters_with_smart = [
+            _cl for _cl in sorted(_cl_avg.keys())
+            if any(_cl_avg[_cl].get(_f) for _f in _ALL_COMP_FIELDS if _FIELD_TYPE[_f] == "smart")
+        ]
+
+        if _clusters_with_smart:
+            sec("Equivalente SMART+ — Média por Cluster", "💳", "orange")
+            _smart_fields = [_f for _f in _ALL_COMP_FIELDS if _FIELD_TYPE[_f] == "smart"]
+            _smart_colors = ["#FF5F00", "#FB923C", "#3B82F6", "#93C5FD", "#10B981", "#6EE7B7"]
+
+            _fig_cl_smart = go.Figure()
+            # Concorrentes
+            for _idx, _f in enumerate(_smart_fields):
+                _x_labels = [f"{_cl} {_CLUSTER_MAP[_cl]}" for _cl in _clusters_with_smart]
+                _y_vals   = [_cl_avg[_cl].get(_f) for _cl in _clusters_with_smart]
+                _fig_cl_smart.add_trace(go.Bar(
+                    name=_FIELD_LABEL[_f], x=_x_labels, y=_y_vals,
+                    marker_color=_smart_colors[_idx % len(_smart_colors)],
+                    text=[f"{v:.2f}" if v else "" for v in _y_vals],
+                    textposition="outside", textfont=dict(size=9, family="Inter"),
+                    hovertemplate=f"{_FIELD_LABEL[_f]}<br>%{{x}}<br><b>%{{y:.2f}} €/dia</b><extra></extra>",
+                ))
+            # SIXT linha de referência por cluster
+            _sixt_smart_line = [
+                round(_sixt_cl_avg[_cl]["smart_counter_vat"] / days, 2)
+                if _cl in _sixt_cl_avg and _sixt_cl_avg[_cl].get("smart_counter_vat") else None
+                for _cl in _clusters_with_smart
+            ]
+            _x_labels_s = [f"{_cl} {_CLUSTER_MAP[_cl]}" for _cl in _clusters_with_smart]
+            _fig_cl_smart.add_trace(go.Scatter(
+                name=f"SIXT SMART+ balcão {counter_discount_pct}%",
+                x=_x_labels_s, y=_sixt_smart_line,
+                mode="lines+markers",
+                line=dict(color="#0F172A", width=2, dash="dot"),
+                marker=dict(size=8, symbol="diamond", color="#0F172A"),
+                hovertemplate="SIXT SMART+<br>%{x}<br><b>%{y:.2f} €/dia</b><extra></extra>",
+            ))
+            _fig_cl_smart.update_layout(
+                barmode="group",
+                title=dict(text=f"SMART+ por Cluster — €/dia c/IVA (concorrência BD · SIXT {days}d÷{days})", font=dict(size=13, family="Inter", color="#0F172A")),
+                yaxis=dict(title="€/dia c/IVA", gridcolor="#F1F5F9"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=10)),
+                height=420, margin=dict(l=40, r=20, t=80, b=60),
+                plot_bgcolor="white", paper_bgcolor="white", font=dict(family="Inter"),
+            )
+            st.plotly_chart(_fig_cl_smart, use_container_width=True)
+
+        # ── Gráfico AI por cluster ────────────────────────
+        _clusters_with_ai = [
+            _cl for _cl in sorted(_cl_avg.keys())
+            if any(_cl_avg[_cl].get(_f) for _f in _ALL_COMP_FIELDS if _FIELD_TYPE[_f] == "ai")
+        ]
+
+        if _clusters_with_ai:
+            sec("Equivalente All Inclusive — Média por Cluster", "💎", "blue")
+            _ai_fields  = [_f for _f in _ALL_COMP_FIELDS if _FIELD_TYPE[_f] == "ai"]
+            _ai_colors  = ["#FF5F00", "#1D4ED8", "#60A5FA", "#10B981", "#8B5CF6"]
+
+            _fig_cl_ai = go.Figure()
+            for _idx, _f in enumerate(_ai_fields):
+                _x_labels = [f"{_cl} {_CLUSTER_MAP[_cl]}" for _cl in _clusters_with_ai]
+                _y_vals   = [_cl_avg[_cl].get(_f) for _cl in _clusters_with_ai]
+                _fig_cl_ai.add_trace(go.Bar(
+                    name=_FIELD_LABEL[_f], x=_x_labels, y=_y_vals,
+                    marker_color=_ai_colors[_idx % len(_ai_colors)],
+                    text=[f"{v:.2f}" if v else "" for v in _y_vals],
+                    textposition="outside", textfont=dict(size=9, family="Inter"),
+                    hovertemplate=f"{_FIELD_LABEL[_f]}<br>%{{x}}<br><b>%{{y:.2f}} €/dia</b><extra></extra>",
+                ))
+            _sixt_ai_line = [
+                round(_sixt_cl_avg[_cl]["ai_counter_vat"] / days, 2)
+                if _cl in _sixt_cl_avg and _sixt_cl_avg[_cl].get("ai_counter_vat") else None
+                for _cl in _clusters_with_ai
+            ]
+            _x_labels_a = [f"{_cl} {_CLUSTER_MAP[_cl]}" for _cl in _clusters_with_ai]
+            _fig_cl_ai.add_trace(go.Scatter(
+                name=f"SIXT AI balcão {ai_counter_pct:.1f}%",
+                x=_x_labels_a, y=_sixt_ai_line,
+                mode="lines+markers",
+                line=dict(color="#0F172A", width=2, dash="dot"),
+                marker=dict(size=8, symbol="diamond", color="#0F172A"),
+                hovertemplate="SIXT AI<br>%{x}<br><b>%{y:.2f} €/dia</b><extra></extra>",
+            ))
+            _fig_cl_ai.update_layout(
+                barmode="group",
+                title=dict(text=f"All Inclusive por Cluster — €/dia c/IVA (concorrência BD · SIXT {days}d÷{days})", font=dict(size=13, family="Inter", color="#0F172A")),
+                yaxis=dict(title="€/dia c/IVA", gridcolor="#F1F5F9"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=10)),
+                height=420, margin=dict(l=40, r=20, t=80, b=60),
+                plot_bgcolor="white", paper_bgcolor="white", font=dict(family="Inter"),
+            )
+            st.plotly_chart(_fig_cl_ai, use_container_width=True)
+
         # ── BD overview (todos os grupos) ─────────────────
         with st.expander(f"📊  Ver BD completa da concorrência ({_n_grupos_bd} grupos ACRISS)"):
             _bd_all_rows = []
