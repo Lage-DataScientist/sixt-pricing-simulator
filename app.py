@@ -1489,9 +1489,19 @@ ai_counter_pct = round(result["ai_counter_discount_solved"] * 100, 2) if result.
 ai_online_pct  = round(result["ai_online_discount_solved"]  * 100, 2) if result.get("ai_online_discount_solved")  is not None else 0
 
 # ── Auto-load BD concorrência (BD_Pacotes_Concorrentes.xlsx na pasta do projeto) ──
-_BD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "BD_Pacotes_Concorrentes.xlsx")
+_BD_FILENAME = "BD_Pacotes_Concorrentes.xlsx"
+_BD_PATH = None
+for _cand in [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), _BD_FILENAME),
+    os.path.join(os.getcwd(), _BD_FILENAME),
+    os.path.join(os.path.dirname(__file__), _BD_FILENAME) if "__file__" in dir() else "",
+    _BD_FILENAME,
+]:
+    if _cand and os.path.exists(_cand):
+        _BD_PATH = _cand
+        break
 comp_bd = None
-if os.path.exists(_BD_PATH):
+if _BD_PATH:
     try:
         with open(_BD_PATH, "rb") as _f:
             comp_bd = load_competitor_bd(_f.read())
