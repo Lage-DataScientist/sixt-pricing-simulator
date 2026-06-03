@@ -16,8 +16,9 @@ env/
 .env/
 
 # Ficheiros sensíveis / dados
-*.xlsx
-*.xls
+# *.xlsx e *.xls excluídos individualmente (BD_Pacotes_Concorrentes.xlsx vai para o repo)
+Matrix*.xlsx
+Matrix*.xls
 *.csv
 
 # Streamlit
